@@ -137,13 +137,15 @@ void GameEnv::start_game(GameConfig& game_config) {
   auto scenario_config = ScenarioConfig::make();
   setConfig(*scenario_config);
   do_step(1, GetScenarioConfig().render);
+  DO_VALIDATION;
 }
 
 SharedInfo GameEnv::get_info() {
-  DO_VALIDATION;
+  GetTracker()->setDisabled(true);
   SharedInfo info;
   GetGameTask()->GetMatch()->GetState(&info);
   info.step = context->step;
+  GetTracker()->setDisabled(false);
   return info;
 }
 
@@ -154,7 +156,6 @@ screenshoot GameEnv::get_frame() {
 
 bool GameEnv::sticky_action_state(int action, bool left_team, int player) {
   SetGame(this);
-  DO_VALIDATION;
   int controller_id = player + (left_team ? 0 : 11);
   auto controller =
       static_cast<AIControlledKeyboard*>(GetControllers()[controller_id]);
@@ -193,10 +194,9 @@ bool GameEnv::sticky_action_state(int action, bool left_team, int player) {
 
 void GameEnv::action(int action, bool left_team, int player) {
   SetGame(this);
-  DO_VALIDATION;
+  GetTracker()->setDisabled(true);
   int controller_id = player + (left_team ? 0 : 11);
   auto controller = static_cast<AIControlledKeyboard*>(GetControllers()[controller_id]);
-  tracker->setDisabled(true);
   switch (Action(action)) {
     case game_idle:
       break;
@@ -295,12 +295,12 @@ void GameEnv::action(int action, bool left_team, int player) {
       controller->SetButton(e_ButtonFunction_Dribble, false);
       break;
   }
-  tracker->setDisabled(false);
+  GetTracker()->setDisabled(false);
 }
 
 std::string GameEnv::get_state() {
   SetGame(this);
-  EnvState reader("");
+  EnvState reader(context, "");
   ProcessState(&reader);
   return reader.GetState();
 }
@@ -308,17 +308,12 @@ std::string GameEnv::get_state() {
 void GameEnv::set_state(const std::string& state) {
   DO_VALIDATION;
   SetGame(this);
-  EnvState writer(state);
+  EnvState writer(context, state);
   ProcessState(&writer);
   if (!writer.eos()) {
     DO_VALIDATION;
     Log(e_FatalError, "football", "main", "corrupted state");
   }
-}
-
-void GameEnv::set_tracker(Tracker* tracker) {
-  DO_VALIDATION;
-  this->tracker = tracker;
 }
 
 void GameEnv::step() {
@@ -365,7 +360,7 @@ void GameEnv::ProcessState(EnvState* state) {
   DO_VALIDATION;
   state->process(&this->state, sizeof(this->state));
   state->process(waiting_for_game_count);
-  GetGameTask()->GetMatch()->ProcessState(state);
+  context->gameTask->GetMatch()->ProcessState(state);
   context->ProcessState(state);
 }
 

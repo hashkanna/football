@@ -55,7 +55,7 @@ def main(_):
   env.reset()
   try:
     while True:
-      _, _, done, _ = env.step(None)
+      _, _, done, _ = env.step([])
       if done:
         env.reset()
   except KeyboardInterrupt:

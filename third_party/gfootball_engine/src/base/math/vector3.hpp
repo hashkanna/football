@@ -143,7 +143,7 @@ namespace blunted {
   }
 
   inline
-  void Vector3::operator = (const Vector3 &src) { DO_VALIDATION;
+  void Vector3::operator = (const Vector3 &src) {
     coords[0] = src.coords[0];
     coords[1] = src.coords[1];
     coords[2] = src.coords[2];

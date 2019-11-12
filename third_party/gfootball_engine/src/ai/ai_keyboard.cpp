@@ -15,7 +15,7 @@
 
 AIControlledKeyboard::AIControlledKeyboard() {
   DO_VALIDATION;
-  memset(buttons_pressed_, 0, sizeof(buttons_pressed_));
+  Reset();
 }
 
 bool AIControlledKeyboard::GetButton(e_ButtonFunction buttonFunction) {
@@ -68,7 +68,7 @@ void AIControlledKeyboard::ProcessState(EnvState* state) {
   state->process(mirror);
   state->process(direction_);
   state->setValidate(true);
-  state->process(buttons_pressed_, sizeof(buttons_pressed_));
+  state->process((void*)buttons_pressed_, sizeof(buttons_pressed_));
 }
 
 void AIControlledKeyboard::Mirror(float mirror) {

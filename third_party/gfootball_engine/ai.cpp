@@ -53,7 +53,9 @@ class GameEnv_Python : public GameEnv {
     context->step = -1;
     PyThreadState* _save = NULL;
     Py_UNBLOCK_THREADS;
+    GetTracker()->setDisabled(true);
     reset(game_config);
+    GetTracker()->setDisabled(false);
     Py_BLOCK_THREADS;
   }
 };
@@ -120,18 +122,11 @@ BOOST_PYTHON_MODULE(_gameplayfootball) {
       .def("step", &GameEnv_Python::step_python)
       .def("get_state", &GameEnv_Python::get_state_python)
       .def("set_state", &GameEnv_Python::set_state)
-      .def("set_tracker", &GameEnv_Python::set_tracker)
       .def("reset", &GameEnv_Python::reset_python)
       .def_readwrite("state", &GameEnv_Python::state)
       .def_readwrite("waiting_for_game_count",
-                     &GameEnv_Python::waiting_for_game_count);
-  ;
-
-  class_<Tracker>("Tracker")
-      .def("setSession", &Tracker::setSession)
-      .def("reset", &Tracker::reset)
-      .def("disable", &Tracker::disable)
-      .def("setup", &Tracker::setup);
+                     &GameEnv_Python::waiting_for_game_count)
+      .def("tracker_setup", &GameEnv::tracker_setup);
 
   class_<Vector3>("Vector3", init<float, float, float>())
      .def("__getitem__", &Vector3::GetEnvCoord)

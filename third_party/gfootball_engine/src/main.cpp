@@ -44,18 +44,19 @@ using std::string;
 using namespace blunted;
 
 thread_local GameEnv* game;
+Tracker tracker;
 
 void DoValidation(int line, const char* file) {
   auto game = GetGame();
   if (game) {
-    game->tracker->verify(line, file);
+    tracker.verify(line, file);
   }
 }
 
 GameEnv* GetGame() { return game; }
+Tracker* GetTracker() { return &tracker; }
 
 GameContext& GetContext() {
-  DO_VALIDATION;
   return *game->context;
 }
 
@@ -183,80 +184,29 @@ void quit_game() {
   Exit();
 }
 
-void Tracker::setSession(int id) {
-  session = id;
-  if (!sessions.count(session)) {
-    sessions[session] = -1;
+void Tracker::verify_snapshot(long pos, int line, const char* file,
+                              const std::string& trace) {
+  bool failure = false;
+  long waiting_pos = waiting_game->context->tracker_pos;
+  if (pos != waiting_pos || line != waiting_line ||
+      strcmp(file, waiting_file)) {
+    failure = true;
   }
-}
-
-void Tracker::disable() { session = -1; }
-
-void Tracker::reset() {
-  session = -1;
-  sessions.clear();
-  stack_trace.clear();
-  traces.clear();
-  sessions.clear();
-  code_lines.clear();
-  code_files.clear();
-}
-
-void Tracker::verify_snapshot(long pos) {
-  long index = pos - start;
+  if (failure) {
+    std::cout << "Position: " << pos << " vs " << waiting_pos << std::endl;
+    std::cout << "Line: " << line << " vs " << waiting_line << std::endl;
+    std::cout << "File: " << file << " vs " << waiting_file << std::endl;
+    std::cout << "Stack: " << trace << " vs " << waiting_stack_trace
+              << std::endl;
+    std::cout << "Game ptr: " << game << " vs " << waiting_game << std::endl;
+    Log(blunted::e_FatalError, "State comparison failure", "", "");
+  }
   if (!game->context->gameTask->GetMatch()) return;
-
-  string stack;
-  if (stack_trace.size() == index) {
-    if (traces.size() > 100000) {
-      Log(blunted::e_FatalError, "Too many traces", "", "");
-    }
-    EnvState reader("");
-    reader.setCrash(false);
-    GetGame()->ProcessState(&reader);
-    if (reader.isFailure()) {
-      std::cout << "State validation mismatch at position " << pos << std::endl;
-      EnvState reader("");
-      GetGame()->ProcessState(&reader);
-    }
-    stack_trace.push_back(stack);
-    traces.push_back(reader.GetState());
-  } else if (stack_trace.size() < index) {
-    Log(blunted::e_FatalError, "Missing calls", "", "");
-  } else {
-    EnvState reader("", traces[index]);
-    GetGame()->ProcessState(&reader);
-    if (stack != stack_trace[index]) {
-      std::cout << "Stack trace mismatch at position " << pos << std::endl;
-      Log(blunted::e_FatalError, "Stack trace mismatch", stack,
-          stack_trace[index]);
-    }
-  }
-}
-
-void Tracker::verify_lines(long pos, int line, const char* file) {
-  long index = pos - start;
-  if (code_lines.size() > index) {
-    if (code_lines[index] != line ||
-        (record_file_names && code_files[index] != file)) {
-      std::cout << "Line mismatch at position " << pos << ": "
-                << code_lines[index] << " vs " << line << std::endl;
-      if (record_file_names) {
-        std::cout << "File mismatch: " << code_files[index] << " vs " << file
-                  << std::endl;
-      }
-      Log(blunted::e_FatalError, "Line mismatch", "", "");
-    }
-  } else if (code_lines.size() < index) {
-    Log(blunted::e_FatalError, "Missing calls", "", "");
-  } else {
-    if (code_lines.size() > 2000000000) {
-      Log(blunted::e_FatalError, "Too many traces", "", "");
-    }
-    code_lines.push_back(line);
-    if (record_file_names) {
-      code_files.push_back(file);
-    }
+  if (verify_state) {
+    EnvState reader1(game->context, "");
+    game->ProcessState(&reader1);
+    EnvState reader2(waiting_game->context, "", reader1.GetState());
+    waiting_game->ProcessState(&reader2);
   }
 }
 

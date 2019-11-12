@@ -21,8 +21,12 @@
 #include "base/log.hpp"
 #include "main.hpp"
 
-EnvState::EnvState(const std::string& state, const std::string reference)
-    : load(!state.empty()), state(state), reference(reference) {
+EnvState::EnvState(GameContext* context, const std::string& state,
+                   const std::string reference)
+    : load(!state.empty()),
+      state(state),
+      reference(reference),
+      context(context) {
   DO_VALIDATION;
 }
 
@@ -52,17 +56,14 @@ void EnvState::process(blunted::radian& value) {
 }
 
 void EnvState::process(blunted::Quaternion& value) {
-  DO_VALIDATION;
   process(&value, sizeof(value));
 }
 
 void EnvState::process(int& value) {
-  DO_VALIDATION;
   process(&value, sizeof(value));
 }
 
 void EnvState::process(std::string& value) {
-  DO_VALIDATION;
   int s = value.size();
   process(s);
   value.resize(s);
@@ -70,7 +71,6 @@ void EnvState::process(std::string& value) {
 }
 
 void EnvState::process(float& value) {
-  DO_VALIDATION;
   process(&value, sizeof(value));
 }
 
@@ -152,7 +152,7 @@ void EnvState::process(void* ptr, int size) {
   } else {
     state.resize(pos + size);
     memcpy(&state[pos], ptr, size);
-    if (validate && !reference.empty() &&
+    if (disable_cnt == 0 && !reference.empty() &&
         memcmp(&state[pos], &reference[pos], size)) {
       failure = true;
       if (crash) {

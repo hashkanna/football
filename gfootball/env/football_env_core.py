@@ -303,13 +303,8 @@ class FootballEnvCore(object):
   def set_state(self, state):
     return self._env.set_state(state)
 
-  def get_tracker(self):
-    tracker = libgame.Tracker()
-    self._env.set_tracker(tracker)
-    return tracker
-
-  def set_tracker(self, tracker):
-    self._env.set_tracker(tracker)
+  def tracker_setup(self, start, end):
+    self._env.tracker_setup(start, end)
 
   def render(self, mode):
     if 'frame' not in self._observation:

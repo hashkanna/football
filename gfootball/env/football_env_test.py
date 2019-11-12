@@ -20,14 +20,18 @@ from __future__ import division
 from __future__ import print_function
 
 from absl.testing import parameterized
+import multiprocessing
 from multiprocessing import pool
+from multiprocessing import Queue
 import os
 import random
+import threading
 import zlib
 
 from gfootball.env import config
 from gfootball.env import football_action_set
 from gfootball.env import football_env
+from gfootball.env import observation_rotation
 from gfootball.env import scenario_builder
 import numpy as np
 import psutil
@@ -65,6 +69,30 @@ def compute_hash(env, actions, extensive=False):
   return hash_value
 
 
+def run_scenario(cfg, seed, queue, actions):
+  env = football_env.FootballEnv(cfg)
+  env.reset()
+  env.tracker_setup(0, 999999999999999)
+  done = False
+  for action in actions:
+    obs, _, done, _ = env.step([action, action])
+    queue.put(obs)
+    if done:
+      queue.put(None)
+      break
+  env.close()
+
+def normalize_observation(obs):
+  for o in obs:
+    if o['ball'][0] == -0:
+      o['ball'][0] = 0
+    if o['ball'][1] == -0:
+      o['ball'][1] = 0
+    if o['ball_direction'][0] == -0:
+      o['ball_direction'][0] = 0
+    if o['ball_direction'][1] == -0:
+      o['ball_direction'][1] = 0
+
 class FootballEnvTest(parameterized.TestCase):
 
   def check_determinism(self, extensive=False):
@@ -80,11 +108,11 @@ class FootballEnvTest(parameterized.TestCase):
     for episode in range(1 if extensive else 2):
       hash_value = compute_hash(env, actions, extensive)
       if extensive:
-        self.assertEqual(hash_value, 1334880473)
+        self.assertEqual(hash_value, 542533140)
       elif episode % 2 == 0:
-        self.assertEqual(hash_value, 3895770360)
+        self.assertEqual(hash_value, 1260994836)
       else:
-        self.assertEqual(hash_value, 2828347973)
+        self.assertEqual(hash_value, 946384466)
     env.close()
 
   def test_score_empty_goal(self):
@@ -195,7 +223,7 @@ class FootballEnvTest(parameterized.TestCase):
     memory_usage = self.memory_usage() - initial_memory
     env.close()
     self.assertGreaterEqual(memory_usage, 1000000)
-    self.assertGreaterEqual(4000000, memory_usage)
+    self.assertGreaterEqual(10000000, memory_usage)
 
   def test_player_order_invariant(self):
     """Checks that environment behaves the same regardless of players order."""
@@ -220,8 +248,6 @@ class FootballEnvTest(parameterized.TestCase):
   @parameterized.parameters(range(1))
   def test_setstate(self, seed):
     """Checks setState functionality."""
-    if 'UNITTEST_IN_DOCKER' in os.environ:
-      return
     cfg = config.Config({
         'level': 'tests.symmetric',
         'game_engine_random_seed': seed
@@ -230,16 +256,12 @@ class FootballEnvTest(parameterized.TestCase):
     env2 = football_env.FootballEnv(cfg)
     env1.reset()
     env2.reset()
-    tracker = env1.get_tracker()
-    env2.set_tracker(tracker)
     env1.reset()
     env2.reset()
     done1 = False
     done2 = False
     random.seed(seed)
     actions = len(football_action_set.get_action_set(cfg))
-    tracker.reset()
-    tracker.setup(0, 1000000, True, True)
     step = 0
     while not done1:
       action = random.randint(0, actions - 1)
@@ -248,11 +270,8 @@ class FootballEnvTest(parameterized.TestCase):
         state = env1.get_state()
         env2.reset()
         env2.set_state(state)
-      tracker.setSession(1)
       o1, _, done1, _ = env1.step(action)
-      tracker.setSession(2)
       o2, _, done2, _ = env2.step(action)
-      tracker.disable()
       self.assertEqual(done1, done2)
       self.assertEqual(observation_hash(o1), observation_hash(o2))
     env1.close()
@@ -261,51 +280,42 @@ class FootballEnvTest(parameterized.TestCase):
   @parameterized.parameters(range(1))
   def test_symmetry(self, seed):
     """Checks game symmetry."""
-    if 'UNITTEST_IN_DOCKER' in os.environ:
-      return
+    processes = []
     cfg1 = config.Config({
         'level': 'tests.symmetric',
         'game_engine_random_seed': seed,
         'players': ['agent:left_players=1,right_players=1'],
         'reverse_team_processing': False,
     })
-    env1 = football_env.FootballEnv(cfg1)
     cfg2 = config.Config({
         'level': 'tests.symmetric',
         'game_engine_random_seed': seed,
         'players': ['agent:left_players=1,right_players=1'],
         'reverse_team_processing': True,
     })
-    env2 = football_env.FootballEnv(cfg2)
-    env1.reset()
-    env2.reset()
-    tracker = env1.get_tracker()
-    env2.set_tracker(tracker)
-    env1.reset()
-    env2.reset()
     random.seed(seed)
-    actions = len(football_action_set.get_action_set(cfg1))
-    tracker.reset()
-    tracker.setup(0, 1000000, True, True)
-    done1 = False
-    done2 = False
-    while not done1:
-      action = random.randint(0, actions - 1)
-      tracker.setSession(1)
-      o1, _, done1, _ = env1.step([action, action])
-      tracker.setSession(2)
-      o2, _, done2, _ = env2.step([action, action])
-      tracker.disable()
-      self.assertEqual(done1, done2)
-      self.assertEqual(str(-o1[0]['right_team']), str(o2[0]['left_team']))
-      self.assertEqual(
-          str(-o1[0]['right_team_direction']),
-          str(o2[0]['left_team_direction']))
-      self.assertEqual(
-          str(o1[0]['right_team_tired_factor']),
-          str(o2[0]['left_team_tired_factor']))
-    env1.close()
-    env2.close()
+    action_cnt = len(football_action_set.get_action_set(cfg1))
+    actions = [random.randint(0, action_cnt - 1) for _ in range(3000)]
+    queue1 = Queue()
+    thread1 = threading.Thread(
+        target=run_scenario, args=(cfg1, seed, queue1, actions))
+    thread1.start()
+    queue2 = Queue()
+    thread2 = threading.Thread(
+        target=run_scenario, args=(cfg2, seed, queue2, actions))
+    thread2.start()
+    while True:
+      o1 = queue1.get()
+      o2 = queue2.get()
+      if not o1 or not o2:
+        self.assertEqual(o1, o2)
+        break
+      normalize_observation(o1)
+      normalize_observation(o2)
+      self.assertEqual(observation_hash(o1[:1]), observation_hash(o2[1:]))
+      self.assertEqual(observation_hash(o2[:1]), observation_hash(o1[1:]))
+    thread1.join()
+    thread2.join()
 
   @parameterized.parameters((1, 'left', True), (0, 'right', True),
                             (1, 'left', False), (0, 'right', False))
@@ -351,6 +361,26 @@ class FootballEnvTest(parameterized.TestCase):
     self.assertAlmostEqual(o[0]['left_team'][1][0], -0.9 * factor, delta=0.2)
     env.close()
 
+  @parameterized.parameters(True, False)
+  def test_penalty(self, reverse):
+    cfg = config.Config({
+        'level': 'tests.penalty',
+        'players': ['agent:left_players=1'],
+        'reverse_team_processing': reverse,
+    })
+    env = football_env.FootballEnv(cfg)
+    o = env.reset()
+    done = False
+    while not done:
+      o, _, done, _ = env.step([football_action_set.action_sliding])
+    self.assertAlmostEqual(o[0]['ball'][0], -0.809, delta=0.01)
+    self.assertAlmostEqual(o[0]['ball'][1], 0.0, delta=0.01)
+    self.assertAlmostEqual(o[0]['right_team'][0][0], 1, delta=0.1)
+    self.assertAlmostEqual(o[0]['right_team'][1][0], -0.75, delta=0.1)
+    self.assertAlmostEqual(o[0]['left_team'][0][0], -0.95, delta=0.1)
+    self.assertAlmostEqual(o[0]['left_team'][1][0], -0.70, delta=0.1)
+    env.close()
+
   @parameterized.parameters((0, -1, True), (1, 1, True), (0, -1, False),
                             (1, 1, False))
   def test_keeper_ball(self, episode, factor, reverse):
@@ -394,4 +424,4 @@ class FootballEnvTest(parameterized.TestCase):
 
 
 if __name__ == '__main__':
-  unittest.main()
+  unittest.main(failfast=True)

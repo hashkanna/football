@@ -19,6 +19,8 @@
 #define _HPP_MAIN
 
 class GameEnv;
+class Tracker;
+Tracker* GetTracker();
 GameEnv* GetGame();
 
 void DoValidation(int line, const char* file);
@@ -46,6 +48,8 @@ void DoValidation(int line, const char* file);
 #include <boost/random.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/weak_ptr.hpp>
+#include <condition_variable>
+#include <mutex>
 
 #define SHARED_PTR boost::shared_ptr
 #define WEAK_PTR boost::weak_ptr
@@ -160,61 +164,6 @@ struct ScenarioConfig {
  }
 };
 
-class Tracker {
- public:
-  void setup(long start, long end, bool record_file_names,
-             bool extensive_check) {
-    this->start = start;
-    this->end = end;
-    this->record_file_names = record_file_names;
-    this->extensive_check = extensive_check;
-  }
-  void reset();
-  void setSession(int id);
-  void disable();
-  bool isFailure();
-  long position() {
-    return sessions[session];
-  }
-  int getSession() {
-    return session;
-  }
-  void setDisabled(bool disabled) {
-    this->disabled += disabled ? 1 : -1;
-  }
-  inline void verify(int line, const char* file) {
-    if (disabled > 0 || session == -1) return;
-    long pos = ++sessions[session];
-    if (pos >= start && pos <= end) {
-      disabled++;
-      if (extensive_check) {
-        verify_snapshot(pos);
-      }
-      verify_lines(pos, line, file);
-      disabled--;
-    }
-  }
- private:
-  void verify_snapshot(long pos);
-  void verify_lines(long pos, int line, const char* file);
-  int disabled = 0;
-  int session = -1;
-  // Tweak start and end to verify that line numbers match for
-  // each call in the verification range (2 bytes / call).
-  long start = 0LL;
-  long end = 1000000000LL;
-  // Should line check be extended with file name check (more memory needed).
-  bool record_file_names = false;
-  // Should extensive check be performed (300k / check).
-  bool extensive_check = false;
-
-  std::vector<std::string> stack_trace;
-  std::vector<std::string> traces;
-  std::map<int, long> sessions;
-  std::vector<short> code_lines;
-  std::vector<std::string> code_files;
-};
-
 enum GameState {
   game_created,
   game_initiated,
@@ -264,6 +213,8 @@ class GameContext {
   std::map<Animation*, std::vector<Vector3>> animPositionCache;
   std::map<Vector3, Vector3> colorCoords;
   int step = 0;
+  int tracker_disabled = 1;
+  long tracker_pos = 0;
   void ProcessState(EnvState* state);
 };
 
@@ -287,4 +238,60 @@ void run_game(Properties* input_config);
 void randomize(unsigned int seed);
 void quit_game();
 int main(int argc, char** argv);
+
+class Tracker {
+ public:
+  void setup(long start, long end) {
+    this->start = start;
+    this->end = end;
+    this->verify_state = true;
+    GetContext().tracker_disabled = 0;
+    GetContext().tracker_pos = 0;
+  }
+  void setDisabled(bool disabled) {
+    GetContext().tracker_disabled += disabled ? 1 : -1;
+  }
+  bool enabled() {
+    return GetContext().tracker_disabled == 0;
+  }
+  inline void verify(int line, const char* file) {
+    if (GetContext().tracker_disabled) return;
+    GetContext().tracker_pos++;
+    if (GetContext().tracker_pos < start || GetContext().tracker_pos > end) return;
+    std::unique_lock<std::mutex> lock(mtx);
+    std::string trace;
+    if (waiting_game == nullptr) {
+      if (GetContext().tracker_pos % 10000 == 0) {
+        std::cout << "Validating: " << GetContext().tracker_pos << std::endl;
+      }
+      waiting_stack_trace = trace;
+      waiting_game = GetGame();
+      waiting_line = line;
+      waiting_file = file;
+      cv.wait(lock);
+      return;
+    }
+    GetContext().tracker_disabled++;
+    verify_snapshot(GetContext().tracker_pos, line, file, trace);
+    GetContext().tracker_disabled--;
+    waiting_game = nullptr;
+    cv.notify_one();
+  }
+ private:
+  void verify_snapshot(long pos, int line, const char* file, const std::string& trace);
+  // Tweak start and end to verify that line numbers match for
+  // each call in the verification range (2 bytes / call).
+  long start = 0LL;
+  long end = 1000000000LL;
+  // Should full state snapshot be performed (more memory needed).
+  bool verify_state = true;
+  bool verify_stack_trace = true;
+  std::mutex mtx;
+  std::condition_variable cv;
+  GameEnv* waiting_game = nullptr;
+  int waiting_line;
+  const char* waiting_file;
+  std::string waiting_stack_trace;
+};
+
 #endif

@@ -50,9 +50,8 @@ void PlayerBase::Deactivate() {
   DO_VALIDATION;
   ResetSituation(GetPosition());
 
-  isActive = false;
-
   if (humanoid) humanoid->Hide();
+  isActive = false;
 
   externalController = nullptr;
   controller.reset();
@@ -147,10 +146,12 @@ void PlayerBase::ResetSituation(const Vector3 &focusPos) {
 
 void PlayerBase::ProcessStateBase(EnvState *state) {
   DO_VALIDATION;
-  humanoid->ProcessState(state);
-  controller->ProcessState(state);
-  state->process(externalController);
   state->process(isActive);
+  humanoid->ProcessState(state);
+  if (IsActive()) {
+    controller->ProcessState(state);
+  }
+  state->process(externalController);
   state->process(lastTouchTime_ms);
   state->process(&lastTouchType, sizeof(e_TouchType));
   state->process(fatigueFactorInv);

@@ -47,16 +47,16 @@ class HumanGamer {
     Player *GetSelectedPlayer() const { return selectedPlayer; }
     void SetSelectedPlayer(Player* player);
     IHIDevice *GetHIDevice() { DO_VALIDATION; return hid; }
-    HumanController* GetHumanController() { DO_VALIDATION; return controller; }
+    HumanController* GetHumanController() { DO_VALIDATION; return controller.get(); }
     void ProcessState(EnvState *state);
     e_PlayerColor GetPlayerColor() const { return playerColor; }
 
   protected:
-    Team *team;
-    IHIDevice *hid;
-    HumanController *controller;
+    Team *team = nullptr;
+    IHIDevice *hid = nullptr;
+    std::unique_ptr<HumanController> controller = nullptr;
     const e_PlayerColor playerColor;
-    Player *selectedPlayer;
+    Player *selectedPlayer = nullptr;
 };
 
 #endif

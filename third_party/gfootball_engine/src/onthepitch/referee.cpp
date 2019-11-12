@@ -24,26 +24,42 @@
 
 #include "../main.hpp"
 
+void Foul::ProcessState(EnvState *state) {
+  state->process(foulPlayer);
+  state->process(foulVictim);
+  state->process(foulType);
+  state->process(advantage);
+  state->process(foulTime);
+  if (state->getContext()->scenario_config->reverse_team_processing) {
+    foulPosition.Mirror();
+  }
+  state->process(foulPosition);
+  if (state->getContext()->scenario_config->reverse_team_processing) {
+    foulPosition.Mirror();
+  }
+  state->process(hasBeenProcessed);
+}
+
 void RefereeBuffer::ProcessState(EnvState *state) {
   DO_VALIDATION;
   state->process(active);
   state->process((void*) &desiredSetPiece, sizeof(desiredSetPiece));
-  if (GetScenarioConfig().reverse_team_processing) {
+  if (state->getContext()->scenario_config->reverse_team_processing) {
     teamID = 1 - teamID;
   }
   state->process(teamID);
-  if (GetScenarioConfig().reverse_team_processing) {
+  if (state->getContext()->scenario_config->reverse_team_processing) {
     teamID = 1 - teamID;
   }
   state->process(setpiece_team);
   state->process(stopTime);
   state->process(prepareTime);
   state->process(startTime);
-  if (GetScenarioConfig().reverse_team_processing) {
+  if (state->getContext()->scenario_config->reverse_team_processing) {
     restartPos.Mirror();
   }
   state->process(restartPos);
-  if (GetScenarioConfig().reverse_team_processing) {
+  if (state->getContext()->scenario_config->reverse_team_processing) {
     restartPos.Mirror();
   }
   state->process(taker);
@@ -87,7 +103,8 @@ void Referee::Process() {
 
     // goal kick / corner
 
-    if (fabs(ballPos.coords[0]) > pitchHalfW + lineHalfW + 0.11) {
+    if (fabs(ballPos.coords[0]) > pitchHalfW + lineHalfW + 0.11 ||
+        match->IsGoalScored()) {
       DO_VALIDATION;
 
       foul.advantage = false;

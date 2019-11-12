@@ -122,14 +122,20 @@ class FootballEnv(gym.Env):
         else:
           o['active'] = (
               adopted[prefix + '_agent_controlled_player'][position + x])
-          o['sticky_actions'] = copy.deepcopy(
-              adopted[prefix + '_agent_sticky_actions'][position + x])
-        o['is_left'] = is_left
+          o['sticky_actions'] = np.array(copy.deepcopy(
+              adopted[prefix + '_agent_sticky_actions'][position + x]))
         # There is no frame for players on the right ATM.
         if is_left and 'frame' in original:
           o['frame'] = original['frame']
         observations.append(o)
     return observations
+
+  def _action_to_list(self, a):
+    if isinstance(a, np.ndarray):
+      return a.tolist()
+    if not isinstance(a, list):
+      return [a]
+    return a
 
   def _get_actions(self):
     obs = self._env.observation()
@@ -143,13 +149,9 @@ class FootballEnv(gym.Env):
                                                right_player_position)
       left_player_position += player.num_controlled_left_players()
       right_player_position += player.num_controlled_right_players()
-      a = player.take_action(adopted_obs)
-      if isinstance(a, np.ndarray):
-        a = a.tolist()
-      if not isinstance(a, list):
-        a = [a]
+      a = self._action_to_list(player.take_action(adopted_obs))
       assert len(adopted_obs) == len(
-          a), 'Player returned {} actions instead of {}.'.format(
+          a), 'Player provided {} actions instead of {}.'.format(
               len(a), len(adopted_obs))
       if not player.can_play_right():
         for x in range(player.num_controlled_right_players()):
@@ -162,8 +164,15 @@ class FootballEnv(gym.Env):
     return actions
 
   def step(self, action):
+    action = self._action_to_list(action)
     if self._agent:
       self._agent.set_action(action)
+    else:
+      assert len(
+          action
+      ) == 0, 'step() received {} actions, but no agent is playing.'.format(
+          len(action))
+
     _, reward, done = self._env.step(self._get_actions())
     score_reward = reward
     if self._agent:
@@ -202,11 +211,8 @@ class FootballEnv(gym.Env):
     self._cached_observation = None
     return self._env.set_state(state)
 
-  def get_tracker(self):
-    return self._env.get_tracker()
-
-  def set_tracker(self, tracker):
-    self._env.set_tracker(tracker)
+  def tracker_setup(self, start, end):
+    self._env.tracker_setup(start, end)
 
   def render(self, mode='human'):
     return self._env.render(mode=mode)

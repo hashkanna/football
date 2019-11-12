@@ -83,7 +83,7 @@ In addition, environment provides wrappers which convert `raw` observations to a
   It consists of several 72 * 96 planes ob bytes, filled in with 0s except for:
    - 1st plane: 255s represent positions of players on the left team
    - 2nd plane: 255s represent positions of players on the right team
-   - 2nd plane: 255s represent positions of a ball
+   - 3rd plane: 255s represent positions of a ball
    - 4th plane: 255s represent positions of an active player
 - `pixels`/`pixels_gray` (aka PixelsStateWrapper) - pixel representation, downscaled to 72 * 96, and converted to a single grayscale channel for `pixels_gray`.
   In order to use this representation you have to enable rendering in create_environment call (and run on GPU).

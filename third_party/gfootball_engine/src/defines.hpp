@@ -65,13 +65,15 @@ namespace blunted {
 class Player;
 class Team;
 class HumanController;
+class GameContext;
 
 
 #include "base/math/vector3.hpp"
 
 class EnvState {
  public:
-  EnvState(const std::string& state, const std::string reference = "");
+  EnvState(GameContext* context, const std::string& state, const std::string reference = "");
+  GameContext* getContext() { return context; }
   void process(unsigned long &value);
   void process(unsigned int &value);
   void process(bool &value);
@@ -96,14 +98,20 @@ class EnvState {
   bool isFailure() {
     return failure;
   }
+  bool enabled() {
+    return this->disable_cnt == 0;
+  }
   void setValidate(bool validate) {
-    this->validate = validate;
+    this->disable_cnt += validate ? -1 : 1;
   }
   void setCrash(bool crash) {
     this->crash = crash;
   }
   bool Load() { return load; }
   void process(void* ptr, int size);
+  int getpos() {
+    return pos;
+  }
   bool eos();
   template<typename T> void process(T* ptr, int size) {
     if (load) {
@@ -115,7 +123,7 @@ class EnvState {
     } else {
       state.resize(pos + size);
       memcpy(&state[pos], ptr, size);
-      if (validate && !reference.empty() && (*(T*) &state[pos]) != (*(T*) &reference[pos])) {
+      if (disable_cnt == 0 && !reference.empty() && (*(T*) &state[pos]) != (*(T*) &reference[pos])) {
         failure = true;
         if (crash) {
           T ref_value;
@@ -138,8 +146,9 @@ class EnvState {
   void SetTeams(Team* team0, Team* team1);
   const std::string& GetState();
  protected:
+  bool stack = true;
   bool load = false;
-  bool validate = true;
+  char disable_cnt = 0;
   bool failure = false;
   bool crash = true;
   std::vector<Player*> players;
@@ -149,6 +158,7 @@ class EnvState {
   std::string state;
   std::string reference;
   int pos = 0;
+  GameContext* context;
  private:
   void process(void** collection, int size, void*& element);
 };
@@ -166,12 +176,12 @@ struct Position {
       value[2] = z;
     }
   }
-  Position(const Position& other) { DO_VALIDATION;
+  Position(const Position& other) {
     value[0] = other.value[0];
     value[1] = other.value[1];
     value[2] = other.value[2];
   }
-  Position& operator=(float* position) { DO_VALIDATION;
+  Position& operator=(float* position) {
     value[0] = position[0];
     value[1] = position[1];
     value[2] = position[2];
@@ -220,8 +230,8 @@ enum e_Team {
 
 // Information about the player (available from python).
 struct PlayerInfo {
-  PlayerInfo() { DO_VALIDATION;}
-  PlayerInfo(const PlayerInfo& f) { DO_VALIDATION;
+  PlayerInfo() { }
+  PlayerInfo(const PlayerInfo& f) {
     player_position = f.player_position;
     player_direction = f.player_direction;
     has_card = f.has_card;
@@ -246,8 +256,8 @@ struct PlayerInfo {
 };
 
 struct ControllerInfo {
-  ControllerInfo() { DO_VALIDATION;}
-  ControllerInfo(int controlled_player) : controlled_player(controlled_player) { DO_VALIDATION;}
+  ControllerInfo() { }
+  ControllerInfo(int controlled_player) : controlled_player(controlled_player) { }
   bool operator == (const ControllerInfo& f) const {
     return controlled_player == f.controlled_player;
   }

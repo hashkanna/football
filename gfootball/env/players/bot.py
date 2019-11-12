@@ -67,8 +67,7 @@ class Player(player_base.PlayerBase):
       Closest opponent."""
     min_d = None
     closest = None
-    for p in self._observation[
-        'right_team' if self._observation['is_left'] else 'left_team']:
+    for p in self._observation['right_team']:
       d = self._object_distance(o, p)
       if min_d is None or d < min_d:
         min_d = d
@@ -88,8 +87,7 @@ class Player(player_base.PlayerBase):
     delta = target - o
     min_d = None
     closest = None
-    for p in self._observation[
-        'right_team' if self._observation['is_left'] else 'left_team']:
+    for p in self._observation['right_team']:
       delta_opp = p - o
       if np.dot(delta, delta_opp) <= 0:
         continue
@@ -134,8 +132,7 @@ class Player(player_base.PlayerBase):
     """
     best_score = None
     best_target = None
-    for player in self._observation[
-        'left_team' if self._observation['is_left'] else 'right_team']:
+    for player in self._observation['left_team']:
       if self._object_distance(player, active) > 0.3:
         continue
       score = self._score_pass_target(active, player)
@@ -166,14 +163,12 @@ class Player(player_base.PlayerBase):
 
   def _get_action(self):
     """Returns action to perform for the current observations."""
-    is_left = self._observation['is_left']
-    active = self._observation['left_team' if is_left else 'right_team'][
-        self._observation['active']]
+    active = self._observation['left_team'][self._observation['active']]
     # Corner etc. - just pass the ball
     if self._observation['game_mode'] != 0:
       return football_action_set.action_long_pass
 
-    if self._observation['ball_owned_team'] == (1 if is_left else 0):
+    if self._observation['ball_owned_team'] == 1:
       if self._last_action == football_action_set.action_pressure:
         return football_action_set.action_sprint
       self._pressure_enabled = True
@@ -182,7 +177,7 @@ class Player(player_base.PlayerBase):
     if self._pressure_enabled:
       self._pressure_enabled = False
       return football_action_set.action_release_pressure
-    target_x = 0.85 if is_left else -0.85
+    target_x = 0.85
 
     if (self._shoot_distance >
         np.linalg.norm(self._observation['ball'][:2] - [target_x, 0])):

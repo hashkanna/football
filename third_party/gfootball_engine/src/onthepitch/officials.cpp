@@ -123,19 +123,22 @@ void Officials::FetchPutBuffers() {
   linesmen[1]->FetchPutBuffers();
 }
 
-void Officials::Put() {
+void Officials::Put(bool mirror) {
   DO_VALIDATION;
   if (GetScenarioConfig().render) {
     DO_VALIDATION;
-    referee->Put(false);
-    linesmen[0]->Put(false);
-    linesmen[1]->Put(false);
+    referee->Put(mirror);
+    linesmen[0]->Put(mirror);
+    linesmen[1]->Put(mirror);
   }
 
   if (referee->GetCurrentFunctionType() == e_FunctionType_Special &&
       (match->GetReferee()->GetCurrentFoulType() == 2 ||
        match->GetReferee()->GetCurrentFoulType() == 3)) {
     DO_VALIDATION;
+    if (mirror) {
+      referee->Mirror();
+    }
     BodyPart bodyPartName = right_elbow;
     if (referee->GetCurrentAnim()->anim->GetName().find("mirror") != std::string::npos) bodyPartName = left_elbow;
 
@@ -153,6 +156,9 @@ void Officials::Put() {
         redCard->SetRotation(bodyPart->GetDerivedRotation());
       }
     }
+    if (mirror) {
+      referee->Mirror();
+    }
   } else if (referee->GetPreviousFunctionType() == e_FunctionType_Special) {
     DO_VALIDATION;
     yellowCard->SetPosition(Vector3(0, 0, -10));
@@ -162,9 +168,7 @@ void Officials::Put() {
 
 void Officials::ProcessState(EnvState *state) {
   DO_VALIDATION;
-  state->setValidate(false);
   referee->ProcessStateBase(state);
   linesmen[0]->ProcessStateBase(state);
   linesmen[1]->ProcessStateBase(state);
-  state->setValidate(true);
 }

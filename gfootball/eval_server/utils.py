@@ -32,7 +32,11 @@ def get_random_string(length=10, append_timestamp=True):
 
 
 def get_grpc_channel(server):
-  return grpc.insecure_channel(server)
+  # send keepalive ping every 10 second
+  # allow unlimited amount of keepalive pings
+  options = (('grpc.keepalive_time_ms', 10000),
+             ('grpc.http2.max_pings_without_data', 0))
+  return grpc.insecure_channel(server, options=options)
 
 
 def get_master_address(track='default'):

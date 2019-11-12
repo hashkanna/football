@@ -262,7 +262,7 @@ Match::Match(MatchData *matchData, const std::vector<IHIDevice *> &controllers)
 Match::~Match() { DO_VALIDATION; }
 
 void Match::Mirror(bool team_0, bool team_1, bool ball) {
-  GetGame()->tracker->setDisabled(true);
+  GetTracker()->setDisabled(true);
   if (team_0) {
     teams[0]->Mirror();
   }
@@ -276,7 +276,7 @@ void Match::Mirror(bool team_0, bool team_1, bool ball) {
   for (auto &i : mentalImages) {
     i.Mirror(team_0, team_1, ball);
   }
-  GetGame()->tracker->setDisabled(false);
+  GetTracker()->setDisabled(false);
 }
 
 void Match::Exit() {
@@ -654,7 +654,9 @@ void Match::UpdateIngameCamera() {
 void Match::ProcessState(EnvState* state) {
   bool team_0_mirror = teams[0]->isMirrored();
   bool team_1_mirror = teams[1]->isMirrored();
-  bool ball_mirror = ball_mirrored ^ GetScenarioConfig().reverse_team_processing;
+  bool ball_mirror =
+      ball_mirrored ^
+      state->getContext()->scenario_config->reverse_team_processing;
   Mirror(team_0_mirror, team_1_mirror, ball_mirror);
   std::vector<Player*> players;
   GetAllTeamPlayers(first_team, players);
@@ -664,7 +666,7 @@ void Match::ProcessState(EnvState* state) {
   teams[second_team]->GetHumanControllers(humanControllers);
   state->SetHumanControllers(humanControllers);
   state->SetPlayers(players);
-  state->SetAnimations(GetContext().anims->GetAnimations());
+  state->SetAnimations(state->getContext()->anims->GetAnimations());
   state->SetTeams(teams[first_team], teams[second_team]);
 
   int size = mentalImages.size();
@@ -680,11 +682,9 @@ void Match::ProcessState(EnvState* state) {
   teams[first_team]->ProcessState(state);
   teams[second_team]->ProcessState(state);
   officials->ProcessState(state);
-  state->setValidate(false);
   for (auto& c : controllers) {
     c->ProcessState(state);
   }
-  state->setValidate(true);
   ball->ProcessState(state);
   state->process(iterations);
   state->process(matchTime_ms);
@@ -727,7 +727,6 @@ void Match::ProcessState(EnvState* state) {
   state->process(ballRetainer);
   possessionSideHistory.ProcessState(state);
   state->process(autoUpdateIngameCamera);
-  state->setValidate(false);
   state->process(cameraOrientation);
   state->process(cameraNodeOrientation);
   state->process(cameraNodePosition);
@@ -741,7 +740,6 @@ void Match::ProcessState(EnvState* state) {
   for (auto& v : camPos) {
     state->process(v);
   }
-  state->setValidate(true);
   referee->ProcessState(state);
 
   resetNetting = true;
@@ -848,11 +846,11 @@ void Match::Process() {
     // HIJ IS EEN HONDELUUUL
     Mirror(reverse, !reverse, reverse);
     referee->Process();
+    Vector3 previousBallPos = ball->Predict(0);
     Mirror(reverse, !reverse, reverse);
 
     // ball
 
-    Vector3 previousBallPos = ball->Predict(0);
     Mirror(false, false, GetScenarioConfig().reverse_team_processing);
     ball->Process();
     Mirror(false, false, GetScenarioConfig().reverse_team_processing);
@@ -926,8 +924,7 @@ void Match::Process() {
       designatedPossessionPlayer = GetBallRetainer();
     }
 
-    bool rev = GetScenarioConfig().reverse_team_processing;
-    Mirror(rev, !rev, rev);
+    Mirror(reverse, !reverse, reverse);
     CheckHumanoidCollisions();
 
     // time
@@ -955,7 +952,7 @@ void Match::Process() {
     }
     bool goal = first_team_goal | second_team_goal;
     ballIsInGoal |= goal;
-    Mirror(rev, !rev, rev);
+    Mirror(reverse, !reverse, reverse);
     if (IsInPlay()) {
       DO_VALIDATION;
       if (goal) {
@@ -963,7 +960,7 @@ void Match::Process() {
         DO_VALIDATION;
         matchData->SetGoalCount(teams[team]->GetID(),
                                 matchData->GetGoalCount(team) + 1);
-        scoreboard->SetGoalCount(team, matchData->GetGoalCount(second_team));
+        scoreboard->SetGoalCount(team, matchData->GetGoalCount(team));
         goalScored = true;
         lastGoalTeam = teams[team];
         teams[team]->GetController()->UpdateTactics();
@@ -1021,7 +1018,13 @@ void Match::Process() {
       if (GetReferee()->GetBuffer().prepareTime > GetActualTime_ms()) {
         DO_VALIDATION;  // FOUL, film referee
         SetAutoUpdateIngameCamera(false);
-        FollowCamera(cameraOrientation, cameraNodeOrientation, cameraNodePosition, cameraFOV, officials->GetReferee()->GetPosition() + Vector3(0, 0, 0.8f), 1.5f);
+        Vector3 referee_pos = officials->GetReferee()->GetPosition();
+        if (GetScenarioConfig().reverse_team_processing) {
+          referee_pos.Mirror();
+        }
+        FollowCamera(cameraOrientation, cameraNodeOrientation,
+                     cameraNodePosition, cameraFOV,
+                     referee_pos + Vector3(0, 0, 0.8f), 1.5f);
         cameraNearCap = 1;
         cameraFarCap = 220;
         if (officials->GetReferee()->GetCurrentFunctionType() == e_FunctionType_Special) referee->AlterSetPiecePrepareTime(GetActualTime_ms() + 1000);
@@ -1119,7 +1122,7 @@ void Match::Put() {
     ball->Put();
     teams[first_team]->Put(GetScenarioConfig().reverse_team_processing);
     teams[second_team]->Put(!GetScenarioConfig().reverse_team_processing);
-    officials->Put();
+    officials->Put(GetScenarioConfig().reverse_team_processing);
   }
 
   GetDynamicNode()->RecursiveUpdateSpatialData(e_SpatialDataType_Both);
@@ -1189,10 +1192,10 @@ bool Match::CheckForGoal(signed int side, const Vector3 &previousBallPos) {
   goal2.SetNormals(Vector3(-side, 0, 0));
 
   Vector3 intersectVec;
-  GetGame()->tracker->setDisabled(true);
+  GetTracker()->setDisabled(true);
   bool intersect1 = goal1.IntersectsLine(line, intersectVec);
   bool intersect2 = goal2.IntersectsLine(line, intersectVec);
-  GetGame()->tracker->setDisabled(false);
+  GetTracker()->setDisabled(false);
   // extra check: ball could have gone 'in' via the side netting, if line begin
   // == inside pitch, but outside of post, and line end == in goal. disallow!
   if (fabs(previousBallPos.coords[1]) > 3.7 &&

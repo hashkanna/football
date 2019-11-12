@@ -122,15 +122,7 @@ class RemoteFootballEnv(gym.Env):
     while True:
       try:
         stub = master_pb2_grpc.MasterStub(self._master_channel)
-        response = stub.StartGame(request, timeout=10*60)
-        return response
-      except grpc.RpcError as e:
-        if e.code() == grpc.StatusCode.DEADLINE_EXCEEDED:
-          continue
-        logging.warning('Exception during request: %s', e)
-        time.sleep(time_to_sleep)
-        if time_to_sleep < 1000:
-          time_to_sleep *= 2
+        return stub.StartGame(request)
       except BaseException as e:
         logging.warning('Exception during request: %s', e)
         logging.warning('Sleeping for %d seconds', time_to_sleep)

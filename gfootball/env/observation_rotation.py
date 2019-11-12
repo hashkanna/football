@@ -98,12 +98,14 @@ def flip_team_observation(observation, result, config, from_team, to_team):
       from_team)]
   result['{}_team_active'.format(to_team)] = observation[
       '{}_team_active'.format(from_team)]
-  result['{}_agent_controlled_player'.format(to_team)] = observation[
-      '{}_agent_controlled_player'.format(from_team)]
-  result['{}_agent_sticky_actions'.format(to_team)] = [
-      rotate_sticky_actions(sticky, config)
-      for sticky in observation['{}_agent_sticky_actions'.format(from_team)]
-  ]
+  if '{}_agent_controlled_player'.format(from_team) in observation:
+    result['{}_agent_controlled_player'.format(to_team)] = observation[
+        '{}_agent_controlled_player'.format(from_team)]
+  if '{}_agent_sticky_actions'.format(from_team) in observation:
+    result['{}_agent_sticky_actions'.format(to_team)] = [
+        rotate_sticky_actions(sticky, config)
+        for sticky in observation['{}_agent_sticky_actions'.format(from_team)]
+    ]
 
 
 def flip_observation(observation, config):
@@ -112,8 +114,7 @@ def flip_observation(observation, config):
   flipped_observation['ball'] = rotate_3d_point(observation['ball'])
   flipped_observation['ball_direction'] = rotate_3d_point(
       observation['ball_direction'])
-  flipped_observation['ball_rotation'] = rotate_3d_point(
-      observation['ball_rotation'])
+  flipped_observation['ball_rotation'] = observation['ball_rotation']
   flipped_observation['ball_owned_team'] = 1 - observation[
       'ball_owned_team'] if observation['ball_owned_team'] > -1 else -1
   flipped_observation['ball_owned_player'] = observation['ball_owned_player']

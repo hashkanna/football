@@ -52,15 +52,7 @@ struct Foul {
   unsigned long foulTime = 0;
   Vector3 foulPosition;
   bool hasBeenProcessed = false;
-  void ProcessState(EnvState* state) { DO_VALIDATION;
-    state->process(foulPlayer);
-    state->process(foulVictim);
-    state->process(foulType);
-    state->process(advantage);
-    state->process(foulTime);
-    state->process(foulPosition);
-    state->process(hasBeenProcessed);
-  }
+  void ProcessState(EnvState* state);
 };
 
 class Referee {

@@ -26,7 +26,7 @@ typedef std::vector<std::string> StringVector;
 
 // Game environment. This is the class that can be used directly from Python.
 struct GameEnv {
-  GameEnv() : tracker(&default_tracker) { DO_VALIDATION;}
+  GameEnv() { DO_VALIDATION;}
   // Start the game (in separate process).
   void start_game(GameConfig& game_config);
 
@@ -42,7 +42,7 @@ struct GameEnv {
   void reset(ScenarioConfig& game_config);
   std::string get_state();
   void set_state(const std::string& state);
-  void set_tracker(Tracker* tracker);
+  void tracker_setup(long start, long end) { GetTracker()->setup(start, end); }
   void step();
   void ProcessState(EnvState* state);
 
@@ -53,9 +53,7 @@ struct GameEnv {
   AIControlledKeyboard* keyboard_ = nullptr;
   bool disable_graphics_ = false;
   int last_step_rendered_frames_ = 1;
-  Tracker default_tracker;
  public:
-  Tracker* tracker;
   GameContext* context = nullptr;
   GameState state = game_created;
   int waiting_for_game_count = 0;

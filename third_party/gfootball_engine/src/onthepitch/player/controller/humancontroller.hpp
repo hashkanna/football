@@ -50,7 +50,7 @@ class HumanController : public PlayerController {
     }
     virtual int GetReactionTime_ms();
 
-    IHIDevice *GetHIDevice() { DO_VALIDATION; return hid; }
+    IHIDevice *GetHIDevice() { return hid; }
 
     int GetActionMode() { DO_VALIDATION; return actionMode; }
 

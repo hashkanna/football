@@ -21,6 +21,7 @@ import random
 
 from absl import app
 from absl import flags
+from absl import logging
 import gfootball.env as football_env
 from gfootball.env import football_action_set
 import grpc
@@ -55,7 +56,7 @@ def seed_rl_preprocessing(observation):
 
 
 def get_inference_model(inference_model):
-  if not inference_model:
+  if not inference_model or FLAGS.username == 'random':
     return random_actions
   model = tf.saved_model.load(inference_model)
   return lambda x: model(seed_rl_preprocessing(x))[0][0].numpy()
@@ -75,8 +76,8 @@ def main(unused_argv):
       try:
         action = model(ob)
         ob, rew, done, _ = env.step(action)
-        print('Playing the game, step {}, action {}, rew {}, done {}'.format(
-            cnt, action, rew, done))
+        logging.info('Playing the game, step %d, action %d, rew %f, done %d',
+                     cnt, action, rew, done)
         cnt += 1
       except grpc.RpcError as e:
         print(e)
