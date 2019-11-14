@@ -1,3 +1,21 @@
+# Useful Commands foe Demo
+
+  1. Goal Practice with just one player controlled using gamepad and a goal keeper  
+  `python3 -m gfootball.play_game --players="gamepad:left_players=1" --level=academy_empty_goal_close`  
+
+  2. Practice against opponents who are lazy and don't move  
+  `python3 -m gfootball.play_game --players="gamepad:left_players=1" --level=academy_single_goal_versus_lazy`  
+
+  3. One player on gamepad, one player on keyboard practicing against a lazy team  
+  `python3 -m gfootball.play_game --players="gamepad:left_players=1;keyboard:left_players=1" --level=academy_single_goal_versus_lazy`  
+
+  4. Play against an easy agent  
+  `python3 -m gfootball.play_game --players "gamepad:left_players=1;ppo2_cnn:right_players=1,policy=gfootball_impala_cnn,checkpoint=/usr/local/google/home/kannappans/Downloads/trained_model_11_vs_11_easy_stochastic"`  
+
+  5. Easy counterattack  
+  `python3 -m gfootball.play_game --players="gamepad:left_players=1" --level=academy_counterattack_easy`  
+
+
 # Google Research Football
 
 This repository contains an RL environment based on open-source game Gameplay
@@ -20,13 +38,12 @@ please use google-research-football@google.com.
 Currently we're supporting only Linux and Python3.
 You can either install the code from github (newest version) or from pypi (stable version).
 
-  1. Install required apt packages with
-  `sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev
+  1. Install required apt packages with `sudo apt-get install git cmake build-essential libgl1-mesa-dev libsdl2-dev
   libsdl2-image-dev libsdl2-ttf-dev libsdl2-gfx-dev libboost-all-dev
   libdirectfb-dev libst-dev mesa-utils xvfb x11vnc libsdl-sge-dev
   python3-pip`
 
-  1. Install gfootball python package from pypi:
+  2. Install gfootball python package from pypi:
 
     - Use `pip3 install gfootball`
     - This command can run for couple of minutes, as it compiles the C++ environment in the background.
