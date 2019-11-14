@@ -1,4 +1,4 @@
-# Useful Commands foe Demo
+# Useful Commands for Demo
 
   1. Goal Practice with just one player controlled using gamepad and a goal keeper  
   `python3 -m gfootball.play_game --players="gamepad:left_players=1" --level=academy_empty_goal_close`  
